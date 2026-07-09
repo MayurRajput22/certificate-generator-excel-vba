@@ -1,0 +1,132 @@
+Option Explicit
+
+Sub GenerateCertificates()
+
+    Dim WordApp As Object
+    Dim WordDoc As Object
+    Dim ws As Worksheet
+    Dim LastRow As Long
+    Dim i As Long
+    Dim TemplatePath As String
+    Dim SaveFolder As String
+    Dim CandidateID As String
+    Dim CandidateName As String
+    Dim CertificateDate As String
+    Dim CertificateID As String
+    Dim fd As FileDialog
+    Dim shp As Object
+
+    Set ws = ThisWorkbook.Sheets(1)
+
+    LastRow = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+
+    '==============================
+    ' Select Word Template
+    '==============================
+    Set fd = Application.FileDialog(msoFileDialogFilePicker)
+
+    With fd
+        .Title = "Select Certificate Word Template"
+        .Filters.Clear
+        .Filters.Add "Word Files", "*.doc;*.docx"
+
+        If .Show <> -1 Then Exit Sub
+
+        TemplatePath = .SelectedItems(1)
+    End With
+
+    '==============================
+    ' Select Save Folder
+    '==============================
+    Set fd = Application.FileDialog(msoFileDialogFolderPicker)
+
+    With fd
+
+        .Title = "Select Folder to Save Certificates"
+
+        If .Show <> -1 Then Exit Sub
+
+        SaveFolder = .SelectedItems(1)
+
+    End With
+
+    '==============================
+    ' Open Word
+    '==============================
+    Set WordApp = CreateObject("Word.Application")
+
+    WordApp.Visible = False
+
+    Application.ScreenUpdating = False
+
+    '==============================
+    ' Loop through Excel
+    '==============================
+    For i = 2 To LastRow
+
+        CandidateID = ws.Cells(i, 1).Value
+        CandidateName = ws.Cells(i, 2).Value
+        CertificateDate = ws.Cells(i, 3).Text
+        CertificateID = ws.Cells(i, 4).Value
+
+        Set WordDoc = WordApp.Documents.Open(TemplatePath)
+
+        '====================================================
+        ' Replace placeholders in BODY
+        '====================================================
+        With WordDoc.Content.Find
+            .ClearFormatting
+            .Replacement.ClearFormatting
+            .Wrap = 1
+
+            .Text = "<<CANDIDATE NAME>>"
+            .Replacement.Text = CandidateName
+            .Execute Replace:=2
+
+            .Text = "<<DATE>>"
+            .Replacement.Text = CertificateDate
+            .Execute Replace:=2
+
+            .Text = "<<CERTIFICATE ID>>"
+            .Replacement.Text = CertificateID
+            .Execute Replace:=2
+        End With
+
+        '====================================================
+        ' Replace placeholders inside ALL TEXT BOXES
+        '====================================================
+        For Each shp In WordDoc.Shapes
+
+            If shp.TextFrame.HasText Then
+
+                shp.TextFrame.TextRange.Text = Replace(shp.TextFrame.TextRange.Text, "<<CANDIDATE NAME>>", CandidateName)
+
+                shp.TextFrame.TextRange.Text = Replace(shp.TextFrame.TextRange.Text, "<<DATE>>", CertificateDate)
+
+                shp.TextFrame.TextRange.Text = Replace(shp.TextFrame.TextRange.Text, "<<CERTIFICATE ID>>", CertificateID)
+
+            End If
+
+        Next shp
+
+        '==============================
+        ' Save PDF
+        '==============================
+        WordDoc.ExportAsFixedFormat _
+            OutputFileName:=SaveFolder & "\" & CandidateID & "_Certificate.pdf", _
+            ExportFormat:=17
+
+        WordDoc.Close False
+
+    Next i
+
+    WordApp.Quit
+
+    Set WordDoc = Nothing
+    Set WordApp = Nothing
+
+    Application.ScreenUpdating = True
+
+    MsgBox "Certificates generated successfully!", vbInformation
+
+End Sub
